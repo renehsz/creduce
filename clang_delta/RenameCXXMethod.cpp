@@ -426,7 +426,11 @@ bool RenameCXXMethod::isValidName(const StringRef &Name)
 {
   size_t PrefixLen = MethodNamePrefix.length();
   StringRef NamePrefix = Name.substr(0, PrefixLen);
+#if LLVM_VERSION_MAJOR >= 19
+  if (NamePrefix != MethodNamePrefix)
+#else
   if (!NamePrefix.equals(MethodNamePrefix))
+#endif
     return false;
   llvm::APInt Num;
   return !Name.drop_front(PrefixLen).getAsInteger(10, Num);

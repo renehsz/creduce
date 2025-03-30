@@ -64,7 +64,8 @@ public:
                           StringRef FileName, bool IsAngled,
                           CharSourceRange FilenameRange, OptionalFileEntryRef File,
                           StringRef SearchPath, StringRef RelativePath,
-                          const Module *Imported,
+                          const Module *SuggestedModule,
+                          bool ModuleImported,
                           SrcMgr::CharacteristicKind FileType) override;
 
 private:
@@ -85,7 +86,8 @@ void IncludesPPCallbacks::InclusionDirective(SourceLocation HashLoc,
                                              OptionalFileEntryRef /*File*/,
                                              StringRef /*SearchPath*/,
                                              StringRef /*RelativePath*/,
-                                             const Module * /*Imported*/,
+                                             const Module * /*SuggestedModule*/,
+                                             bool /*ModuleImported*/,
                                              SrcMgr::CharacteristicKind /*FileType*/)
 {
   if (!SrcManager.isInMainFile(HashLoc))
@@ -118,7 +120,11 @@ bool LocalTmpVarCollector::VisitDeclRefExpr(DeclRefExpr *DRE)
   const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl());
   if (!VD)
     return true;
+#if LLVM_VERSION_MAJOR >= 19
+  if (VD->getName().starts_with(Prefix))
+#else
   if (VD->getName().startswith(Prefix))
+#endif
     TmpVars.push_back(VD);
   return true;
 }
@@ -363,7 +369,11 @@ void ExpressionDetector::addOneTempVar(const VarDecl *VD)
 {
   if (!VD)
     return;
+#if LLVM_VERSION_MAJOR >= 19
+  if (!VD->getName().starts_with(TmpVarNamePrefix))
+#else
   if (!VD->getName().startswith(TmpVarNamePrefix))
+#endif
     return;
   if (const Expr *E = VD->getInit())
     ProcessedExprs[VD] = E->IgnoreParenImpCasts();
@@ -374,9 +384,15 @@ bool ExpressionDetector::refToTmpVar(const NamedDecl *ND)
   StringRef Name = ND->getName();
   // We don't want to repeatly replace temporary variables
   // __creduce_expr_tmp_xxx, __creduce_printed_yy and __creduce_checked_zzz.
+#if LLVM_VERSION_MAJOR >= 19
+  return Name.starts_with(TmpVarNamePrefix) ||
+         Name.starts_with(PrintedVarNamePrefix) ||
+         Name.starts_with(CheckedVarNamePrefix);
+#else
   return Name.startswith(TmpVarNamePrefix) ||
          Name.startswith(PrintedVarNamePrefix) ||
          Name.startswith(CheckedVarNamePrefix);
+#endif
 }
 
 // Reference: IdenticalExprChecker.cpp from Clang
@@ -524,8 +540,13 @@ bool ExpressionDetector::isValidExpr(Stmt *S, const Expr *E)
       if (const DeclRefExpr *SubE =
           dyn_cast<DeclRefExpr>(UO->getSubExpr()->IgnoreParenCasts())) {
         StringRef SubEName = SubE->getDecl()->getName();
+#if LLVM_VERSION_MAJOR >= 19
+        if (SubEName.starts_with(PrintedVarNamePrefix) ||
+            SubEName.starts_with(CheckedVarNamePrefix))
+#else
         if (SubEName.startswith(PrintedVarNamePrefix) ||
             SubEName.startswith(CheckedVarNamePrefix))
+#endif
           return false;
       }
     }
@@ -541,7 +562,11 @@ bool ExpressionDetector::isValidExpr(Stmt *S, const Expr *E)
       bool IsLit = SC == Stmt::IntegerLiteralClass ||
                    SC == Stmt::FloatingLiteralClass;
       if (IsLit && DRE &&
+#if LLVM_VERSION_MAJOR >= 19
+          DRE->getDecl()->getName().starts_with(TmpVarNamePrefix) &&
+#else
           DRE->getDecl()->getName().startswith(TmpVarNamePrefix) &&
+#endif
           S->getStmtClass() == Stmt::IfStmtClass) {
         return false;
       }
