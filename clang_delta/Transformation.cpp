@@ -22,8 +22,10 @@
 #include "clang/Basic/SourceManager.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/RewriteBuffer.h"
 
 using namespace clang;
+using namespace llvm;
 
 class TransNameQueryVisitor : public
         RecursiveASTVisitor<TransNameQueryVisitor> {

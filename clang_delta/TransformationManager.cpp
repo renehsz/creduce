@@ -91,7 +91,7 @@ bool TransformationManager::initializeCompilerInstance(std::string &ErrorMsg)
   ClangInstance = new CompilerInstance();
   assert(ClangInstance);
   
-  ClangInstance->createDiagnostics();
+  ClangInstance->createDiagnostics(*llvm::vfs::getRealFileSystem());
 
   TargetOptions &TargetOpts = ClangInstance->getTargetOpts();
   PreprocessorOptions &PPOpts = ClangInstance->getPreprocessorOpts();
